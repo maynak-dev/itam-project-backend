@@ -1,0 +1,219 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+enum Role {
+  ADMIN
+  IT_TEAM
+  MANAGER
+  EMPLOYEE
+}
+
+enum AssetStatus {
+  AVAILABLE
+  IN_USE
+  REPAIR
+  RETIRED
+}
+
+enum AssetCategory {
+  HARDWARE
+  SOFTWARE
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum MaintenanceStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+enum LicenseStatus {
+  ACTIVE
+  EXPIRED
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AssetCondition {
+  NEW
+  GOOD
+  FAIR
+  POOR
+}
+
+enum ActionTaken {
+  REASSIGN
+  REPAIR
+  RETIRE
+}
+
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  password   String
+  role       Role     @default(EMPLOYEE)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  employee   Employee?
+  auditLogs  AuditLog[]
+}
+
+model Employee {
+  id          String         @id @default(cuid())
+  employeeId  String         @unique
+  name        String
+  department  String
+  designation String
+  email       String         @unique
+  mobile      String?
+  plant       String?
+  location    String?
+  status      EmployeeStatus @default(ACTIVE)
+  userId      String?        @unique
+  user        User?          @relation(fields: [userId], references: [id])
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  assignments     Assignment[]
+  returns         AssetReturn[]
+  requests        AssetRequest[]
+  licenseAssignments LicenseAssignment[]
+}
+
+model Asset {
+  id             String        @id @default(cuid())
+  assetId        String        @unique
+  assetType      String
+  category       AssetCategory
+  brand          String?
+  model          String?
+  serialNumber   String?       @unique
+  assetTag       String?       @unique
+  purchaseDate   DateTime?
+  vendorName     String?
+  invoiceNumber  String?
+  cost           Float?
+  warrantyExpiry DateTime?
+  status         AssetStatus   @default(AVAILABLE)
+  location       String?
+  department     String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  assignments  Assignment[]
+  returns      AssetReturn[]
+  maintenance  Maintenance[]
+}
+
+model AssetRequest {
+  id             String        @id @default(cuid())
+  requestId      String        @unique
+  requestDate    DateTime      @default(now())
+  employeeId     String
+  employee       Employee      @relation(fields: [employeeId], references: [id])
+  assetType      String
+  justification  String?
+  status         RequestStatus @default(PENDING)
+  managerApproval Boolean     @default(false)
+  itApproval     Boolean      @default(false)
+  requiredDate   DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Assignment {
+  id             String         @id @default(cuid())
+  assignmentId   String         @unique
+  assetId        String
+  asset          Asset          @relation(fields: [assetId], references: [id])
+  employeeId     String
+  employee       Employee       @relation(fields: [employeeId], references: [id])
+  assignmentDate DateTime       @default(now())
+  expectedReturn DateTime?
+  conditionGiven AssetCondition @default(GOOD)
+  acknowledged   Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model AssetReturn {
+  id              String         @id @default(cuid())
+  returnId        String         @unique
+  assetId         String
+  asset           Asset          @relation(fields: [assetId], references: [id])
+  employeeId      String
+  employee        Employee       @relation(fields: [employeeId], references: [id])
+  returnDate      DateTime       @default(now())
+  conditionReturn AssetCondition
+  remarks         String?
+  actionTaken     ActionTaken?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model Maintenance {
+  id               String            @id @default(cuid())
+  ticketId         String            @unique
+  assetId          String
+  asset            Asset             @relation(fields: [assetId], references: [id])
+  issueDescription String
+  reportedDate     DateTime          @default(now())
+  vendorEngineer   String?
+  status           MaintenanceStatus @default(OPEN)
+  resolutionDate   DateTime?
+  cost             Float?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model License {
+  id            String        @id @default(cuid())
+  licenseId     String        @unique
+  softwareName  String
+  licenseKey    String?
+  totalUsers    Int
+  purchaseDate  DateTime?
+  expiryDate    DateTime?
+  status        LicenseStatus @default(ACTIVE)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  assignments LicenseAssignment[]
+}
+
+model LicenseAssignment {
+  id         String   @id @default(cuid())
+  licenseId  String
+  license    License  @relation(fields: [licenseId], references: [id])
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  assignedAt DateTime @default(now())
+
+  @@unique([licenseId, employeeId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String
+  entity     String
+  entityId   String?
+  details    Json?
+  createdAt  DateTime @default(now())
+}
